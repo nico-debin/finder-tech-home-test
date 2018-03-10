@@ -2,11 +2,13 @@
 
 namespace App\Exceptions;
 
+use App\Libraries\Server\ServerRequestException;
 use Exception;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Laravel\Lumen\Exceptions\Handler as ExceptionHandler;
+use Log;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class Handler extends ExceptionHandler
@@ -33,6 +35,7 @@ class Handler extends ExceptionHandler
      */
     public function report(Exception $e)
     {
+        Log::error($e->getMessage());
         parent::report($e);
     }
 
@@ -45,6 +48,10 @@ class Handler extends ExceptionHandler
      */
     public function render($request, Exception $e)
     {
+        if ($e instanceof ServerRequestException) {
+            return response()->json(["error" => $e->getMessage(), "code" => $e->getCode()]);
+        }
+
         return parent::render($request, $e);
     }
 }
