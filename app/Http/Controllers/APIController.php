@@ -9,7 +9,8 @@ class APIController extends Controller
 {
     public function giveHint()
     {
-        return 'Try /hello/:name';
+        //return 'Try /hello/:name';
+        return 'Try '.route('sayHello');
     }
 
     public function sayHello($name)

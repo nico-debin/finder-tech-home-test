@@ -12,5 +12,5 @@
 */
 
 $router->get('/',  ['uses' => 'APIController@giveHint']);
-$router->get('hello/{name}',  ['uses' => 'APIController@sayHello']);
+$router->get('hello/{name}',  ['as' => 'sayHello', 'uses' => 'APIController@sayHello']);
 $router->get('histogram/{name}',  ['uses' => 'APIController@showHistogram']);

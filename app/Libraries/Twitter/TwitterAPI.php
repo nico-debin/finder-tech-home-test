@@ -15,6 +15,12 @@ class TwitterAPI
         $this->server = new TwitterServer($this->getConfig());
     }
 
+    /**
+     * Builds a configuration array with Twitter's credentials as needed by TwitterServer,
+     * reading from environment variables
+     *
+     * @return array
+     */
     protected function getConfig()
     {
         return [
@@ -25,9 +31,15 @@ class TwitterAPI
         ];
     }
 
+    /**
+     * Looks for the latest tweets for a user in Twitter
+     *
+     * @param string $screenName The username in Twitter
+     * @return array
+     */
     public function getLatestTweets($screenName)
     {
-        return $this->server->getUserTimeline(['screen_name' => $screenName])->array();
+        return $this->server->getUserTimeline(['screen_name' => $screenName])->object();
     }
 
     /**

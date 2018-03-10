@@ -18,15 +18,18 @@ use GuzzleHttp\Subscriber\Oauth\Oauth1;
 class TwitterServer implements Server
 {
     const TWITTER_API_BASE_URL = 'https://api.twitter.com/1.1/';
+
     /**
      * The HTTP status code from the previous request
      */
     protected $httpStatusCode;
+
     /**
      * HTTP Client that handles requests to Twitter's API
      * @var \GuzzleHttp\Client
      */
     protected $httpClient;
+
     /**
      * Twitter auth credentials
      */
