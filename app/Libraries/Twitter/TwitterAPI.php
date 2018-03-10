@@ -40,9 +40,10 @@ class TwitterAPI
      */
     public function getUserHistogram($screenName, $date = null)
     {
-        if ($date) {
+        // Parse date. Default is today's date.
+        try {
             $targetDate = new Carbon($date);
-        } else {
+        } catch (\Exception $e) {
             $targetDate = Carbon::today();
         }
 
@@ -51,7 +52,7 @@ class TwitterAPI
             'screen_name' => $screenName,
             'trim_user' => true,
             'exclude_replies' => true,
-            'count' => 100,
+            'count' => 100, // Get batches of 100 tweets
             'max_id' => null // max_id starts in null since it's the first one
         ];
 
@@ -62,6 +63,7 @@ class TwitterAPI
         while ($fetchMoreTweets) {
             $userTimeline = $this->server->getUserTimeline($params)->object();
 
+            // Tweets comes sorted by date in descending order
             foreach ($userTimeline as $tweet) {
                 $tweetDate = new Carbon($tweet->created_at);
                 if ($tweetDate->isSameDay($targetDate)) { // Same day of same month of same year
