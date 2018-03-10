@@ -38,18 +38,6 @@ class TwitterServer implements Server
     private $consumer_key;
     private $consumer_secret;
 
-    public function __construct(array $config)
-    {
-        // TODO: Validate config has all four values
-
-        $this->oauth_access_token = $config['oauth_access_token'];
-        $this->oauth_access_token_secret = $config['oauth_access_token_secret'];
-        $this->consumer_key = $config['consumer_key'];
-        $this->consumer_secret = $config['consumer_secret'];
-
-        $this->buildHttpClient();
-    }
-
     /**
      * Builds an HTTP Client with the OAuth1 protocol needed by Twitter's API
      */
@@ -71,6 +59,18 @@ class TwitterServer implements Server
             'handler' => $stack,
             'auth' => 'oauth'
         ]);
+    }
+
+    public function setConfig(array $config)
+    {
+        // TODO: Validate config has all four values
+
+        $this->oauth_access_token = $config['oauth_access_token'];
+        $this->oauth_access_token_secret = $config['oauth_access_token_secret'];
+        $this->consumer_key = $config['consumer_key'];
+        $this->consumer_secret = $config['consumer_secret'];
+
+        $this->buildHttpClient();
     }
 
     /**

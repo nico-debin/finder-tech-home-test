@@ -10,9 +10,10 @@ class TwitterAPI
      */
     private $server;
 
-    public function __construct()
+    public function __construct(TwitterServer $server)
     {
-        $this->server = new TwitterServer($this->getConfig());
+        $this->server = $server;
+        $this->server->setConfig($this->getConfig());
     }
 
     /**
@@ -64,7 +65,7 @@ class TwitterAPI
             'screen_name' => $screenName,
             'trim_user' => true,
             'exclude_replies' => true,
-            'count' => 100, // Get batches of 100 tweets
+            'count' => env('TWEET_BATCH_LIMIT', 100), // Get batches of 100 tweets
             'max_id' => null // max_id starts in null since it's the first one
         ];
 
