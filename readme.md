@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/nicodebin/finder-tech-home-test.svg?branch=master)](https://travis-ci.org/nicodebin/finder-tech-home-test)
+
 # Take Home Tech Task
 
 Using an appropriate micro-framework as a foundation (e.g. [Silex](https://silex.symfony.com/), or [Slim](https://www.slimframework.com/) etc.), connect to
