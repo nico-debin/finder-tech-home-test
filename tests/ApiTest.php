@@ -2,16 +2,19 @@
 
 use App\Libraries\Server\ServerRequestException;
 use App\Libraries\Twitter\TwitterResponse;
+use Carbon\Carbon;
 use GuzzleHttp\Psr7;
 
 class ApiTest extends TestCase
 {
     public $twitterServer;
+    public $fakeTweetId;
 
     public function setUp()
     {
         parent::setUp();
         $this->twitterServer = $this->mock(\App\Libraries\Twitter\TwitterServer::class);
+        $this->fakeTweetId = rand(100000000000, 900000000000);
     }
 
     public function mock($class)
@@ -24,6 +27,33 @@ class ApiTest extends TestCase
     public function tearDown()
     {
         Mockery::close();
+    }
+
+    /**
+     * Returns a dummy class to build a fake tweet easily
+     */
+    public function fakeTweet() {
+        $fakeTweet = new class {
+            private $tweet = ['a' => 1];
+
+            public function date($strDate) {
+                // write dates in Twitter's format
+                $this->tweet['created_at'] = Carbon::parse($strDate)->format('D M d H:i:s O Y');
+                return $this;
+            }
+
+            public function id($id) {
+                $this->tweet['id'] = $id;
+                return $this;
+            }
+
+            public function get() {
+                return $this->tweet;
+            }
+        };
+
+        // Decrease the ID each time a new tweet is created.
+        return $fakeTweet->id($this->fakeTweetId--);
     }
 
     public function testRootEndpoint()
@@ -50,8 +80,9 @@ class ApiTest extends TestCase
         $stream = Psr7\stream_for(json_encode($twitterTimelineResponse));
         $response = new Psr7\Response(200, ['Content-Type' => 'application/json'], $stream);
 
-        $this->twitterServer->shouldReceive('getUserTimeline')->once()->andReturn(new TwitterResponse($response));
+        // Mock twitter server
         $this->twitterServer->shouldReceive('setConfig')->once();
+        $this->twitterServer->shouldReceive('getUserTimeline')->once()->andReturn(new TwitterResponse($response));
 
         $this->get('/histogram/Ferrari');
         $this->seeJsonEquals([]);
@@ -59,17 +90,16 @@ class ApiTest extends TestCase
 
     public function testHistogramThreeTweetsInADay()
     {
-        $id = 859017375156159928;
-
         $twitterTimelineResponse = [];
-        $twitterTimelineResponse[] = ['id' => $id--, 'created_at' => 'Fri Mar 09 20:55:23 +0000 2018'];
-        $twitterTimelineResponse[] = ['id' => $id--, 'created_at' => 'Fri Mar 09 15:05:19 +0000 2018'];
-        $twitterTimelineResponse[] = ['id' => $id--, 'created_at' => 'Fri Mar 09 05:17:22 +0000 2018'];
-        $twitterTimelineResponse[] = ['id' => $id--, 'created_at' => 'Wed Mar 07 23:11:11 +0000 2018'];
+        $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-09 20:55:23')->get();
+        $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-09 15:05:19')->get();
+        $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-09 05:17:22')->get();
+        $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-07 23:11:11')->get();
 
         $stream = Psr7\stream_for(json_encode($twitterTimelineResponse));
         $response = new Psr7\Response(200, ['Content-Type' => 'application/json'], $stream);
 
+        // Mock twitter server
         $this->twitterServer->shouldReceive('setConfig')->once();
         $this->twitterServer->shouldReceive('getUserTimeline')->once()->andReturn(new TwitterResponse($response));
 
@@ -85,21 +115,20 @@ class ApiTest extends TestCase
     {
         $twitterTimelineResponse = [];
         $batchLimit = env('TWEET_BATCH_LIMIT', 100);
-        $id = 8590353890812344;
 
         // Add a lot of tweets in an other day
         for ($i = 0; $i < ($batchLimit + 20); $i++) {
-            $twitterTimelineResponse[] = ['id' => $id--, 'created_at' => 'Sat Mar 10 20:55:23 +0000 2018'];
+            $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-10 20:55:23')->get();
         }
 
         // Add tweets in the day to be tested
-        $twitterTimelineResponse[] = ['id' => $id--, 'created_at' => 'Fri Mar 09 19:55:23 +0000 2018'];
-        $twitterTimelineResponse[] = ['id' => $id--, 'created_at' => 'Fri Mar 09 19:05:19 +0000 2018'];
-        $twitterTimelineResponse[] = ['id' => $id--, 'created_at' => 'Fri Mar 09 17:17:22 +0000 2018'];
+        $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-09 19:55:23')->get();
+        $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-09 19:05:19')->get();
+        $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-09 17:17:22')->get();
 
         // Add some more tweets in another day
         for ($i = 0; $i < ($batchLimit / 4); $i++) {
-            $twitterTimelineResponse[] = ['id' => $id--, 'created_at' => 'Thu Mar 08 13:16:46 +0000 2018'];
+            $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-08 13:16:46')->get();
         }
 
         // Build two responses for the two batches
@@ -109,6 +138,7 @@ class ApiTest extends TestCase
         $stream2 = Psr7\stream_for(json_encode(array_slice($twitterTimelineResponse, $batchLimit + 1)));
         $response2 = new Psr7\Response(200, ['Content-Type' => 'application/json'], $stream2);
 
+        // Mock twitter server
         $this->twitterServer->shouldReceive('setConfig')->once();
         $this->twitterServer->shouldReceive('getUserTimeline')->twice()->andReturn(new TwitterResponse($response1), new TwitterResponse($response2));
 
@@ -121,17 +151,16 @@ class ApiTest extends TestCase
 
     public function testHistogramWithNoTweetsInSpecificDay()
     {
-        $id = 859017375156159928;
-
         $twitterTimelineResponse = [];
-        $twitterTimelineResponse[] = ['id' => $id--, 'created_at' => 'Sat Mar 10 19:55:23 +0000 2018'];
-        $twitterTimelineResponse[] = ['id' => $id--, 'created_at' => 'Fri Mar 09 19:05:19 +0000 2018'];
-        $twitterTimelineResponse[] = ['id' => $id--, 'created_at' => 'Wed Mar 07 17:17:22 +0000 2018'];
-        $twitterTimelineResponse[] = ['id' => $id--, 'created_at' => 'Tue Mar 06 17:17:22 +0000 2018'];
+        $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-10 19:55:23')->get();
+        $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-09 19:05:19')->get();
+        $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-07 17:17:22')->get();
+        $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-06 17:17:22')->get();
 
         $stream = Psr7\stream_for(json_encode($twitterTimelineResponse));
         $response = new Psr7\Response(200, ['Content-Type' => 'application/json'], $stream);
 
+        // Mock twitter server
         $this->twitterServer->shouldReceive('setConfig')->once();
         $this->twitterServer->shouldReceive('getUserTimeline')->once()->andReturn(new TwitterResponse($response));
 
@@ -144,6 +173,7 @@ class ApiTest extends TestCase
         $message = "Some message";
         $code = 123;
 
+        // Mock twitter server
         $this->twitterServer->shouldReceive('setConfig')->once();
         $this->twitterServer->shouldReceive('getUserTimeline')->once()->andThrow(new ServerRequestException($message, $code));
 
