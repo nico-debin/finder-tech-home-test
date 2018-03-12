@@ -34,7 +34,7 @@ class ApiTest extends TestCase
      */
     public function fakeTweet() {
         $fakeTweet = new class {
-            private $tweet = ['a' => 1];
+            private $tweet = [];
 
             public function date($strDate) {
                 // write dates in Twitter's format
