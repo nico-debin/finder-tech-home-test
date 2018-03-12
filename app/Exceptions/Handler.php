@@ -2,6 +2,7 @@
 
 namespace App\Exceptions;
 
+use App\Libraries\Server\MissingCredentialsException;
 use App\Libraries\Server\ServerRequestException;
 use Exception;
 use Illuminate\Validation\ValidationException;
@@ -48,8 +49,8 @@ class Handler extends ExceptionHandler
      */
     public function render($request, Exception $e)
     {
-        if ($e instanceof ServerRequestException) {
-            return response()->json(["error" => $e->getMessage(), "code" => $e->getCode()]);
+        if ($e instanceof ServerRequestException or $e instanceof MissingCredentialsException) {
+            return response()->json(["error" => $e->getMessage(), "code" => $e->getCode()], 400);
         }
 
         return parent::render($request, $e);

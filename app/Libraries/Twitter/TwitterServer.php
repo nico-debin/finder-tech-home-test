@@ -9,11 +9,14 @@
 namespace App\Libraries\Twitter;
 
 
+use App\Libraries\Server\MissingCredentialsException;
 use App\Libraries\Server\Server;
 use App\Libraries\Server\ServerRequestException;
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Subscriber\Oauth\Oauth1;
+use Validator;
 
 class TwitterServer implements Server
 {
@@ -39,6 +42,34 @@ class TwitterServer implements Server
     private $consumer_secret;
 
     /**
+     * Set credentials to use with Twitter API
+     *
+     * @param array $config
+     * @throws MissingCredentialsException
+     */
+    public function setConfig(array $config)
+    {
+        $validator = Validator::make($config, [
+            'oauth_access_token' => 'required',
+            'oauth_access_token_secret' => 'required',
+            'consumer_key' => 'required',
+            'consumer_secret' => 'required',
+        ]);
+
+        if ($validator->fails()) {
+            $errors = $validator->errors();
+            throw new MissingCredentialsException($errors->first());
+        }
+
+        $this->oauth_access_token = $config['oauth_access_token'];
+        $this->oauth_access_token_secret = $config['oauth_access_token_secret'];
+        $this->consumer_key = $config['consumer_key'];
+        $this->consumer_secret = $config['consumer_secret'];
+
+        $this->buildHttpClient();
+    }
+
+    /**
      * Builds an HTTP Client with the OAuth1 protocol needed by Twitter's API
      */
     private function buildHttpClient()
@@ -59,18 +90,6 @@ class TwitterServer implements Server
             'handler' => $stack,
             'auth' => 'oauth'
         ]);
-    }
-
-    public function setConfig(array $config)
-    {
-        // TODO: Validate config has all four values
-
-        $this->oauth_access_token = $config['oauth_access_token'];
-        $this->oauth_access_token_secret = $config['oauth_access_token_secret'];
-        $this->consumer_key = $config['consumer_key'];
-        $this->consumer_secret = $config['consumer_secret'];
-
-        $this->buildHttpClient();
     }
 
     /**
@@ -130,10 +149,24 @@ class TwitterServer implements Server
     {
         try {
             $response = $this->httpClient->request($method, $endpoint, $params);
+        } catch (ClientException $e) {
+            $this->handleClientException($e);
         } catch (\Exception $e) {
             throw new ServerRequestException($e->getMessage(), $e->getCode(), $e);
         }
         $this->httpStatusCode = $response->getStatusCode();
         return new TwitterResponse($response);
+    }
+
+    private function handleClientException(ClientException $e)
+    {
+        try {
+            $json = json_decode($e->getResponse()->getBody()->getContents(), true);
+            $message = "Twitter: " . $json['errors'][0]['message'];
+            $code = $json['errors'][0]['code'];
+            throw new ServerRequestException($message, $code, $e);
+        } catch (\Exception $e) {
+            throw new ServerRequestException($e->getMessage(), $e->getCode(), $e);
+        }
     }
 }
