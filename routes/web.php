@@ -11,6 +11,6 @@
 |
 */
 
-$router->get('/', function () use ($router) {
-    return $router->app->version();
-});
+$router->get('/',  ['uses' => 'APIController@giveHint']);
+$router->get('hello/{name}',  ['as' => 'sayHello', 'uses' => 'APIController@sayHello']);
+$router->get('histogram/{name}',  ['uses' => 'APIController@showHistogram']);
