@@ -56,6 +56,15 @@ class ApiTest extends TestCase
         return $fakeTweet->id($this->fakeTweetId--);
     }
 
+    /**
+     * Using an array of data, fakes a response as returned by TwitterServer
+     */
+    public function fakeTwitterResponse(array $twitterTimelineResponse) {
+        $stream = Psr7\stream_for(json_encode($twitterTimelineResponse));
+        $response = new Psr7\Response(200, ['Content-Type' => 'application/json'], $stream);
+        return new TwitterResponse($response);
+    }
+
     public function testRootEndpoint()
     {
         $this->get('/');
@@ -76,16 +85,13 @@ class ApiTest extends TestCase
 
     public function testHistogramEmptyResponse()
     {
-        $twitterTimelineResponse = [];
-        $stream = Psr7\stream_for(json_encode($twitterTimelineResponse));
-        $response = new Psr7\Response(200, ['Content-Type' => 'application/json'], $stream);
+        $twitterResponse = $this->fakeTwitterResponse([]); // Response with no tweets
 
         // Mock twitter server
         $this->twitterServer->shouldReceive('setConfig')->once();
-        $this->twitterServer->shouldReceive('getUserTimeline')->once()->andReturn(new TwitterResponse($response));
+        $this->twitterServer->shouldReceive('getUserTimeline')->once()->andReturn($twitterResponse);
 
-        $this->get('/histogram/Ferrari');
-        $this->seeJsonEquals([]);
+        $this->get('/histogram/Ferrari')->seeJsonEquals([]);
     }
 
     public function testHistogramThreeTweetsInADay()
@@ -96,12 +102,11 @@ class ApiTest extends TestCase
         $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-09 05:17:22')->get();
         $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-07 23:11:11')->get();
 
-        $stream = Psr7\stream_for(json_encode($twitterTimelineResponse));
-        $response = new Psr7\Response(200, ['Content-Type' => 'application/json'], $stream);
+        $twitterResponse = $this->fakeTwitterResponse($twitterTimelineResponse);
 
         // Mock twitter server
         $this->twitterServer->shouldReceive('setConfig')->once();
-        $this->twitterServer->shouldReceive('getUserTimeline')->once()->andReturn(new TwitterResponse($response));
+        $this->twitterServer->shouldReceive('getUserTimeline')->once()->andReturn($twitterResponse);
 
         $this->get('/histogram/Ferrari?date=2018-03-09');
         $this->seeJsonEquals([
@@ -132,15 +137,12 @@ class ApiTest extends TestCase
         }
 
         // Build two responses for the two batches
-        $stream1 = Psr7\stream_for(json_encode(array_slice($twitterTimelineResponse, 0, $batchLimit)));
-        $response1 = new Psr7\Response(200, ['Content-Type' => 'application/json'], $stream1);
-
-        $stream2 = Psr7\stream_for(json_encode(array_slice($twitterTimelineResponse, $batchLimit + 1)));
-        $response2 = new Psr7\Response(200, ['Content-Type' => 'application/json'], $stream2);
+        $twitterResponse1 = $this->fakeTwitterResponse(array_slice($twitterTimelineResponse, 0, $batchLimit));
+        $twitterResponse2 = $this->fakeTwitterResponse(array_slice($twitterTimelineResponse, $batchLimit + 1));
 
         // Mock twitter server
         $this->twitterServer->shouldReceive('setConfig')->once();
-        $this->twitterServer->shouldReceive('getUserTimeline')->twice()->andReturn(new TwitterResponse($response1), new TwitterResponse($response2));
+        $this->twitterServer->shouldReceive('getUserTimeline')->twice()->andReturn($twitterResponse1, $twitterResponse2);
 
         $this->get('/histogram/Ferrari?date=2018-03-09');
         $this->seeJsonEquals([
@@ -157,15 +159,45 @@ class ApiTest extends TestCase
         $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-07 17:17:22')->get();
         $twitterTimelineResponse[] = $this->fakeTweet()->date('2018-03-06 17:17:22')->get();
 
-        $stream = Psr7\stream_for(json_encode($twitterTimelineResponse));
-        $response = new Psr7\Response(200, ['Content-Type' => 'application/json'], $stream);
+        $twitterResponse = $this->fakeTwitterResponse($twitterTimelineResponse);
 
         // Mock twitter server
         $this->twitterServer->shouldReceive('setConfig')->once();
-        $this->twitterServer->shouldReceive('getUserTimeline')->once()->andReturn(new TwitterResponse($response));
+        $this->twitterServer->shouldReceive('getUserTimeline')->once()->andReturn($twitterResponse);
 
-        $this->get('/histogram/Ferrari?date=2018-03-08');
-        $this->seeJsonEquals([]);
+        $this->get('/histogram/Ferrari?date=2018-03-08')->seeJsonEquals([]);
+    }
+
+    public function testHistogramAllHours()
+    {
+        // Build  at least one tweet for each hour
+        $twitterTimelineResponse = [];
+        for ($i=23 ; $i>=0 ; $i--) {
+            $minutes = rand(20, 59);
+            for ($j=0 ; $j<rand(1,4); $j++) {
+                $date = sprintf("2018-03-12 %02d:%02d:%02d", $i, $minutes--, rand(0, 59));
+                $twitterTimelineResponse[] = $this->fakeTweet()->date($date)->get();
+            }
+        }
+
+        $twitterResponse = $this->fakeTwitterResponse($twitterTimelineResponse);
+
+        // Mock twitter server
+        $this->twitterServer->shouldReceive('setConfig')->once();
+        $this->twitterServer->shouldReceive('getUserTimeline')->once()->andReturn($twitterResponse);
+
+        $response = $this->call('GET', '/histogram/Ferrari?date=2018-03-12');
+
+        $histogram = json_decode($response->content(), true);
+
+        $tweetCount = 0;
+        foreach ($histogram as $hourRange => $count) {
+            $tweetCount += $count;
+            $this->assertTrue(in_array($hourRange, range(0, 23)));
+            $this->assertGreaterThan(0, $count);
+        }
+
+        $this->assertEquals(count($twitterTimelineResponse), $tweetCount);
     }
 
     public function testTwitterServerConnectionError()
@@ -177,9 +209,10 @@ class ApiTest extends TestCase
         $this->twitterServer->shouldReceive('setConfig')->once();
         $this->twitterServer->shouldReceive('getUserTimeline')->once()->andThrow(new ServerRequestException($message, $code));
 
-        $this->get('/histogram/Ferrari');
-        $this->seeJsonContains(['error' => $message, 'code' => $code]);
-    }
+        $response = $this->call('GET', '/histogram/Ferrari');
 
+        $this->seeJsonContains(['error' => $message, 'code' => $code]);
+        $this->assertEquals(400, $response->status());
+    }
 
 }

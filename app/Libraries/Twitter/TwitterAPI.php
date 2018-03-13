@@ -59,13 +59,14 @@ class TwitterAPI
         } catch (\Exception $e) {
             $targetDate = Carbon::today();
         }
+        $tweetBatchLimit = intval(env('TWEET_BATCH_LIMIT', 100));
 
         // parameters for getUserTimeline()
         $params = [
             'screen_name' => $screenName,
             'trim_user' => true,
             'exclude_replies' => true,
-            'count' => env('TWEET_BATCH_LIMIT', 100), // Get batches of 100 tweets
+            'count' => $tweetBatchLimit, // Get batches of 100 tweets
             'max_id' => null // max_id starts in null since it's the first one
         ];
 
@@ -94,7 +95,7 @@ class TwitterAPI
                 }
             }
 
-            if (isset($tweet)) {
+            if (count($userTimeline) == $tweetBatchLimit) {
                 $params['max_id'] = $tweet->id - 1;
             } else {
                 break; // break while
